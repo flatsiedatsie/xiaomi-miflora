@@ -1,0 +1,43 @@
+{
+  "author": "Flatsiedatsie",
+  "description": "Support for MiFlora flower care devices by Xiaomi",
+  "gateway_specific_settings": {
+    "webthings": {
+      "exec": "python3 {path}/bootstrap.py",
+      "primary_type": "adapter",
+      "strict_max_version": "*",
+      "strict_min_version": "0.10.0"
+    }
+  },
+  "homepage_url": "https://github.com/flatsiedatsie/xiaomi-miflora",
+  "id": "xiaomi-miflora",
+  "license": "MPL-2.0",
+  "manifest_version": 1,
+  "name": "Xiaomi MiFlora",
+  "options": {
+    "default": {
+      "Metric": true,
+      "Polling interval": "24",
+      "Debugging": false
+    },
+    "schema": {
+      "properties": {
+        "Polling interval": {
+          "description": "How many hours should there be between polling the MiFlora devices? Default is 24 hours.",
+          "type": "number"
+        },
+        "Debugging": {
+          "description": "Debugging allows you to diagnose any issues with the add-on. If enabled it will result in a lot more debug data in the internal log (which can be found under settings -> developer -> view internal logs).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+				"Polling interval",
+        "Debugging"
+      ],
+      "type": "object"
+    }
+  },
+  "short_name": "xmiflora",
+  "version": "0.0.1"
+}
