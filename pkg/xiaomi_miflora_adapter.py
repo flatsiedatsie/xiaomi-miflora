@@ -74,6 +74,8 @@ class XiaomiMifloraAdapter(Adapter):
         self.macs = set()
         self.stragglers = set()
         
+        self.busy = False # Whether a poll is already in progress.
+        
         self.last_update_all_time = 0 # When the last full polling of all devices was done
         self.last_scan_time = 0 # When the last full scan for new devices was done
         
@@ -150,8 +152,8 @@ class XiaomiMifloraAdapter(Adapter):
         
         # Debug
         try:
-            if 'Debug' in config:
-                self.DEBUG = bool(config['Debug'])
+            if 'Debugging' in config:
+                self.DEBUG = bool(config['Debugging'])
                 if self.DEBUG:
                     print("-Debug preference is present in the config data.")
         except Exception as ex:
@@ -165,7 +167,6 @@ class XiaomiMifloraAdapter(Adapter):
                     print("-Polling interval preference is present in the config data.")
                 if int(config['Polling interval']) != 0:
                     self.polling_interval_seconds = int(config['Polling interval']) * 60 * 60
-
             else:
                 if self.DEBUG:
                     print("-Polling interval was not in config, will stay with default of 24h.")
@@ -204,11 +205,13 @@ class XiaomiMifloraAdapter(Adapter):
         
 
     def start_scan(self):
-        try:
-            # Rate limiting to once a minute at most. A scan takes 10 seconds, but polling all the devices also takes quite some time.
-            if time.time() - self.last_scan_time > 60:
-                self.last_scan_time = time.time()
-            
+        
+        # Rate limiting to once a minute at most. A scan takes 10 seconds, but polling all the devices also takes quite some time.
+        if time.time() - self.last_scan_time > 60 and self.busy == False:
+            #self.busy = True
+            self.last_scan_time = time.time()
+        
+            try:
                 
                 new_devices = []
                 command = "sudo python3 " + os.path.join(self.add_on_path,'scan.py')
@@ -241,8 +244,12 @@ class XiaomiMifloraAdapter(Adapter):
                 if self.DEBUG:
                     print("Done scanning for new MiFlora devices")
 
-        except Exception as ex:
-            print("Error running BLUE scan: " + str(ex))
+                
+
+            except Exception as ex:
+                print("Error running BLUE scan: " + str(ex))
+        
+            #self.busy = False
         
         return True
         
@@ -252,7 +259,8 @@ class XiaomiMifloraAdapter(Adapter):
         
         self.stragglers.clear() # Clears the list of device that didn't send any data
         
-        if time.time() - self.last_update_all_time > self.polling_interval_seconds and self.initial_scan_done:
+        if time.time() - self.last_update_all_time > self.polling_interval_seconds and self.initial_scan_done and self.busy == False:
+            self.busy = True
             self.last_update_all_time = time.time()
         
             print("Now polling all MiFlora devices")
@@ -277,7 +285,7 @@ class XiaomiMifloraAdapter(Adapter):
                         sleep(10)
                     except Exception as ex:
                         print("Error polling device: " + str(ex))
-            
+            self.busy = False
     
 
     def add_a_flora(self,mac):
@@ -288,7 +296,7 @@ class XiaomiMifloraAdapter(Adapter):
                 print("-creating: " + str(name))
             
             # We create the device object
-            device = MifloraDevice(self, name)
+            device = MifloraDevice(self, mac)
             
             # Finally, now that the device is complete, we present it to the Gateway.
             self.handle_device_added(device)
@@ -298,78 +306,87 @@ class XiaomiMifloraAdapter(Adapter):
 
 
     def poll_a_flora(self,mac):
-        print("Polling MiFlora device: " + str(mac))
         
-        name = 'xiaomi-miflora-{}'.format(mac)
+        if self.busy == False:
+            self.busy = True
+        
+            print("Polling MiFlora device: " + str(mac))
+        
+            name = 'xiaomi-miflora-{}'.format(mac)
 
-        try:
-            targetDevice = self.get_device(name)
-            if str(targetDevice) != 'None':
-                if self.DEBUG:
-                    print("Target device existed")
-                targetDevice.connected_notify(True)
-            
-                updated_values = {}
-                poller = MiFloraPoller(mac, BluepyBackend)
-            
-                # Get values from MiFlora
-                if self.DEBUG:
-                    print("Getting data from Mi Flora")
-                try:
-                    if self.DEBUG: 
-                        print("FW: {}".format(poller.firmware_version()))
-                        print("Name: {}".format(poller.name()))
-                except:
-                    print("Couldn't get firmware and name")
-            
-                try:
-                    updated_values['temperature'] = poller.parameter_value(MI_TEMPERATURE)
-                    print("Received temperature")
-                except:
-                    print("Couldn't read temperature")
-                try:
-                    updated_values['moisture'] = poller.parameter_value(MI_MOISTURE)
-                    print("Received moisture level")
-                except:
-                    print("Couldn't read moisture")
-                try:
-                    updated_values['light'] = poller.parameter_value(MI_LIGHT)
-                    print("Received light level")
-                except:
-                    print("Couldn't read light") 
-                try:
-                    updated_values['conductivity'] = poller.parameter_value(MI_CONDUCTIVITY)
-                    print("Received conductivity")
-                except:
-                    print("Couldn't read conductivity") 
-                try:
-                    updated_values['battery'] = poller.parameter_value(MI_BATTERY)
-                    print("Received battery level")
-                except:
-                    print("Couldn't read battery level") 
-            
-            
-                # Updating thing properties
-                for property_name in updated_values:
-                    targetProperty = targetDevice.find_property(property_name)
-                    if targetProperty != None:
-                        if self.DEBUG:
-                            print("target " + str(property_name) + " property exists, updating")
-                        targetProperty.update(updated_values[property_name])
-                    else:
-                        if self.DEBUG:
-                            print("Strange, target property did not exist?")
-            
-            
-                # If no data was received, set the device to disconnected
-                if len(updated_values) == 0:
+            try:
+                targetDevice = self.get_device(name)
+                if str(targetDevice) != 'None':
                     if self.DEBUG:
-                        print("Polling went poorly, no values received. Setting device to disconnected")
-                    targetDevice.connected_notify(False)
-                    self.stragglers.add(mac) # creates a list of devices that didn't connect propertly, and will get a second chance in 5 minutes.
+                        print("Target device existed")
+                    
             
-        except Exception as ex:
-            print("Error polling Miflora device: "  + str(ex))
+                    updated_values = {}
+                    poller = MiFloraPoller(mac, BluepyBackend)
+            
+                    # Get values from MiFlora
+                    if self.DEBUG:
+                        print("Getting data from Mi Flora")
+                    try:
+                        if self.DEBUG: 
+                            print("FW: {}".format(poller.firmware_version()))
+                            print("Name: {}".format(poller.name()))
+                    except:
+                        print("Couldn't get firmware and name")
+            
+                    try:
+                        updated_values['temperature'] = poller.parameter_value(MI_TEMPERATURE)
+                        print("Received temperature")
+                    except:
+                        print("Couldn't read temperature")
+                    try:
+                        updated_values['moisture'] = poller.parameter_value(MI_MOISTURE)
+                        print("Received moisture level")
+                    except:
+                        print("Couldn't read moisture")
+                    try:
+                        updated_values['light'] = poller.parameter_value(MI_LIGHT)
+                        print("Received light level")
+                    except:
+                        print("Couldn't read light") 
+                    try:
+                        updated_values['conductivity'] = poller.parameter_value(MI_CONDUCTIVITY)
+                        print("Received conductivity")
+                    except:
+                        print("Couldn't read conductivity") 
+                    try:
+                        updated_values['battery'] = poller.parameter_value(MI_BATTERY)
+                        print("Received battery level")
+                    except:
+                        print("Couldn't read battery level") 
+            
+            
+                    # Updating thing properties
+                    for property_name in updated_values:
+                        targetProperty = targetDevice.find_property(property_name)
+                        if targetProperty != None:
+                            if self.DEBUG:
+                                print("target " + str(property_name) + " property exists, updating")
+                            targetProperty.update(updated_values[property_name])
+                        else:
+                            if self.DEBUG:
+                                print("Strange, target property did not exist?")
+            
+            
+                    # If no data was received, set the device to disconnected.
+                    if len(updated_values) == 0:
+                        if self.DEBUG:
+                            print("Polling went poorly, no values received. Setting device to disconnected")
+                        targetDevice.connected_notify(False)
+                        self.stragglers.add(mac) # creates a list of devices that didn't connect propertly, and will get a second chance in 5 minutes.
+                    else:
+                        # If data was received, set the device to "connected".
+                        targetDevice.connected_notify(True)
+            
+            except Exception as ex:
+                print("Error polling Miflora device: "  + str(ex))
+        
+            self.busy = False
         
         return True # done
 
