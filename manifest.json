@@ -17,7 +17,7 @@
   "options": {
     "default": {
       "Metric": true,
-      "Polling interval": "24",
+      "Polling interval": 24,
       "Debugging": false
     },
     "schema": {
