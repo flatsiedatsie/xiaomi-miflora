@@ -3,7 +3,7 @@
   "display_name": "Xiaomi MiFlora",
   "version": "0.0.1",
   "description": "Support for MiFlora plant health devices by Xiaomi",
-  "author": "CreateCandle",
+  "author": "Flatsiedatsie",
   "main": "bootstrap.py",
   "keywords": [
     "mozilla",
@@ -27,6 +27,7 @@
     "SHA256SUMS",
 		"bootstrap.py",
     "main.py",
+		"scan.py",
     "pkg/__init__.py",
     "pkg/xiaomi_miflora_adapter.py",
     "pkg/xiaomi_miflora_device.py",
