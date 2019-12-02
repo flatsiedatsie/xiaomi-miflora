@@ -26,6 +26,7 @@ find package -type d -empty -delete
 cd package
 #sha256sum *.py pkg/*.py LICENSE > SHA256SUMS
 find . -type f \! -name SHA256SUMS -exec sha256sum {} \; >> SHA256SUMS
+cp SHA256SUMS ../
 cd -
 
 # Make the tarball
